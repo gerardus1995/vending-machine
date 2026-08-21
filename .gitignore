@@ -1,0 +1,33 @@
+# Composer
+/vendor/
+/composer.lock
+
+# PHPUnit
+/.phpunit.result.cache
+/phpunit.xml
+
+# PHPStan
+/phpstan.phonet.neon
+/phpstan.php
+/phpstan.neon
+
+# PHP-CS-Fixer
+/.php_cs.cache
+/.php-cs-fixer.php
+/.php-cs-fixer.dist.php
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+.env

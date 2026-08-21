@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  app:
+   build: .
+   container_name: vending-machine-app
+   volumes:
+     - .:/app
+   working_dir: /app
+   # We keep stdin open to allow interactive shells if needed
+   tty: true
