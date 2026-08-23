@@ -1,5 +1,5 @@
 {
-    "name": "vending-machine",
+    "name": "gerard/vending-machine",
     "description": "A PHP 8.3 vending machine kata",
     "type": "project",
     "require": {
