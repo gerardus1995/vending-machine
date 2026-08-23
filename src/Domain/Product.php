@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
-use App\Domain\Money;
-
 final class Product
 {
     private readonly string $id;
@@ -13,15 +11,15 @@ final class Product
     private readonly Money $price;
 
     /**
-     * @throws InvalidArgumentException
+     * @throws \InvalidArgumentException
      */
     public function __construct(string $id, string $name, Money $price)
     {
-        if ($id === '') {
-            throw new InvalidArgumentException('Product id cannot be empty');
+        if ('' === $id) {
+            throw new \InvalidArgumentException('Product id cannot be empty');
         }
-        if ($name === '') {
-            throw new InvalidArgumentException('Product name cannot be empty');
+        if ('' === $name) {
+            throw new \InvalidArgumentException('Product name cannot be empty');
         }
         $this->id = $id;
         $this->name = $name;

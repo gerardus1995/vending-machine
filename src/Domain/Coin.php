@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
+use App\Domain\Exception\InvalidCoinException;
+
 enum Coin: int
 {
     case FIVE = 5;
@@ -14,8 +16,8 @@ enum Coin: int
     /**
      * Create a Coin from a cents value.
      *
-     * @param int $cents The coin value in cents.
-     * @return self
+     * @param int $cents the coin value in cents
+     *
      * @throws InvalidCoinException
      */
     public static function fromCents(int $cents): self
@@ -26,8 +28,6 @@ enum Coin: int
 
     /**
      * Get the value in cents.
-     *
-     * @return int
      */
     public function toCents(): int
     {

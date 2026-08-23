@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
+use App\Domain\Exception\InvalidMoneyException;
+
 final class Money
 {
     private readonly int $cents;
@@ -17,6 +19,12 @@ final class Money
             throw new InvalidMoneyException('Money amount cannot be negative');
         }
         $this->cents = $cents;
+    }
+
+    public function __toString(): string
+    {
+        // Format as decimal with two decimal places
+        return sprintf('%.2f', $this->cents / 100);
     }
 
     public static function fromCents(int $cents): self
@@ -41,6 +49,7 @@ final class Money
         if ($cents < 0) {
             throw new InvalidMoneyException('Money amount cannot be negative');
         }
+
         return new self($cents);
     }
 
@@ -60,6 +69,7 @@ final class Money
         if ($result < 0) {
             throw new InvalidMoneyException('Subtraction would result in negative money');
         }
+
         return new self($result);
     }
 
@@ -80,12 +90,6 @@ final class Money
 
     public function isZero(): bool
     {
-        return $this->cents === 0;
-    }
-
-    public function __toString(): string
-    {
-        // Format as decimal with two decimal places
-        return sprintf('%.2f', $this->cents / 100);
+        return 0 === $this->cents;
     }
 }

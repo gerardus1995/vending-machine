@@ -7,6 +7,11 @@ namespace App\Tests\Unit\Exception;
 use App\Domain\Exception\ProductNotFoundException;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class ProductNotFoundExceptionTest extends TestCase
 {
     public function testIsDomainException(): void
@@ -17,6 +22,7 @@ final class ProductNotFoundExceptionTest extends TestCase
     public function testCanBeThrownAndCaught(): void
     {
         $this->expectException(ProductNotFoundException::class);
+
         throw new ProductNotFoundException('Test message');
     }
 }

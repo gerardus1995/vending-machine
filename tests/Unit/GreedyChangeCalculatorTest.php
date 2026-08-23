@@ -8,6 +8,11 @@ use App\Domain\ChangeCalculatorInterface;
 use App\Domain\GreedyChangeCalculator;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class GreedyChangeCalculatorTest extends TestCase
 {
     private ChangeCalculatorInterface $calculator;

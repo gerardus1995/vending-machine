@@ -12,7 +12,7 @@ class InMemoryProductRepository implements ProductRepositoryInterface
     private array $products;
 
     /**
-     * @param Product[] $products List of products to initialize the repository with.
+     * @param Product[] $products list of products to initialize the repository with
      */
     public function __construct(array $products = [])
     {

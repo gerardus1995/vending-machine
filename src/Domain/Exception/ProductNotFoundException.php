@@ -4,6 +4,4 @@ declare(strict_types=1);
 
 namespace App\Domain\Exception;
 
-class ProductNotFoundException extends \DomainException
-{
-}
+class ProductNotFoundException extends \DomainException {}

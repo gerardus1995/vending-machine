@@ -8,6 +8,11 @@ use App\Domain\Coin;
 use App\Domain\Exception\InvalidCoinException;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class CoinTest extends TestCase
 {
     public function testEnumCases(): void

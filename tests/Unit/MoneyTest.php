@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\Money;
 use App\Domain\Exception\InvalidMoneyException;
+use App\Domain\Money;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class MoneyTest extends TestCase
 {
     public function testCanBeCreatedFromCents(): void

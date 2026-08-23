@@ -9,6 +9,11 @@ use App\Domain\Product;
 use App\Domain\PurchaseResult;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class PurchaseResultTest extends TestCase
 {
     public function testCanBeCreatedWithProductAndChange(): void

@@ -8,6 +8,11 @@ use App\Domain\Money;
 use App\Domain\Product;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class ProductTest extends TestCase
 {
     public function testCanBeCreatedWithValidParameters(): void

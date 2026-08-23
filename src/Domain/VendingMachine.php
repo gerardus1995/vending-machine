@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
-use App\Domain\Coin;
-use App\Domain\ChangeCalculatorInterface;
 use App\Domain\Exception\InsufficientFundsException;
 use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
-use App\Domain\ProductRepositoryInterface;
 
 /**
  * The VendingMachine aggregate orchestrates the vending machine functionality.
@@ -24,8 +21,8 @@ final class VendingMachine
     private array $productStock;
 
     /**
-     * @var array<int, int> Mapping of coin denomination (cents) to available quantity
-     * This represents the machine's change fund.
+     * @var array<int, int> mapping of coin denomination (cents) to available quantity
+     *                      This represents the machine's change fund
      */
     private array $coinInventory;
 
@@ -39,7 +36,7 @@ final class VendingMachine
 
     /**
      * @param ProductRepositoryInterface $productRepository Repository for product lookup
-     * @param ChangeCalculatorInterface $changeCalculator Service for calculating change
+     * @param ChangeCalculatorInterface  $changeCalculator  Service for calculating change
      */
     public function __construct(
         ProductRepositoryInterface $productRepository,
@@ -72,6 +69,7 @@ final class VendingMachine
     {
         $coins = $this->insertedCoins;
         $this->insertedCoins = [];
+
         return $coins;
     }
 
@@ -79,6 +77,7 @@ final class VendingMachine
      * Attempt to purchase a product.
      *
      * @param string $productId The ID of the product to purchase
+     *
      * @return PurchaseResult The purchased product and change to return
      *
      * @throws ProductNotFoundException   If the product ID is not found
@@ -95,7 +94,7 @@ final class VendingMachine
 
         // 2. Find the product
         $product = $this->productRepository->findById($productId);
-        if ($product === null) {
+        if (null === $product) {
             throw new ProductNotFoundException(sprintf('Product with ID "%s" not found', $productId));
         }
 
@@ -130,7 +129,7 @@ final class VendingMachine
         // 8. If we reach here, all validations passed. Now mutate state atomically.
 
         // Decrement product stock
-        $this->productStock[$productIdKey]--;
+        --$this->productStock[$productIdKey];
 
         // Add inserted coins to machine's inventory
         foreach ($this->insertedCoins as $coin) {
@@ -152,6 +151,7 @@ final class VendingMachine
 
         // 9. Return result
         $changeMoney = Money::fromCents($changeAmount);
+
         return new PurchaseResult($product, $changeMoney);
     }
 
@@ -159,8 +159,8 @@ final class VendingMachine
      * Reconfigure the machine's product stock and coin inventory.
      * Rejected if there are coins inserted in the current transaction.
      *
-     * @param array<string, int> $productStock   Mapping of product ID to quantity
-     * @param array<int, int>    $coinInventory  Mapping of coin denomination (cents) to quantity
+     * @param array<string, int> $productStock  Mapping of product ID to quantity
+     * @param array<int, int>    $coinInventory Mapping of coin denomination (cents) to quantity
      *
      * @throws InvalidServiceOperationException If coins are inserted in current transaction
      */
@@ -207,6 +207,7 @@ final class VendingMachine
         foreach ($this->insertedCoins as $coin) {
             $total += $coin->toCents();
         }
+
         return $total;
     }
 }

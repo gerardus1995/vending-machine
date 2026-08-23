@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Domain\InMemoryProductRepository;
-use App\Domain\Product;
 use App\Domain\Money;
+use App\Domain\Product;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ *
+ * @coversNothing
+ */
 final class InMemoryProductRepositoryTest extends TestCase
 {
     public function testFindByIdReturnsProductWhenExists(): void
@@ -21,7 +26,7 @@ final class InMemoryProductRepositoryTest extends TestCase
         $this->assertInstanceOf(Product::class, $found);
         $this->assertSame('water', $found->id());
         $this->assertSame('Water', $found->name());
-        $this->assertSame(Money::fromString('0.65'), $found->price());
+        $this->assertEquals(Money::fromString('0.65'), $found->price());
     }
 
     public function testFindByIdReturnsNullWhenNotExists(): void
@@ -62,14 +67,14 @@ final class InMemoryProductRepositoryTest extends TestCase
 
         $this->assertInstanceOf(Product::class, $water);
         $this->assertSame('Water', $water->name());
-        $this->assertSame(Money::fromString('0.65'), $water->price());
+        $this->assertEquals(Money::fromString('0.65'), $water->price());
 
         $this->assertInstanceOf(Product::class, $juice);
         $this->assertSame('Juice', $juice->name());
-        $this->assertSame(Money::fromString('1.00'), $juice->price());
+        $this->assertEquals(Money::fromString('1.00'), $juice->price());
 
         $this->assertInstanceOf(Product::class, $soda);
         $this->assertSame('Soda', $soda->name());
-        $this->assertSame(Money::fromString('1.50'), $soda->price());
+        $this->assertEquals(Money::fromString('1.50'), $soda->price());
     }
 }
