@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Domain\Result;
 
 use App\Domain\Entity\Product;
 use App\Domain\Result\PurchaseResult;

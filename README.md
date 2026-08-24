@@ -67,8 +67,9 @@ php vendor/bin/php-cs-fixer fix
 - `src/Domain` - Domain entities, value objects, inventories, and exceptions.
 - `src/Application` - Application actions (thin use cases around the domain).
 - `src/Cli` - Command-line interface parsing and output formatting.
-- `tests/Unit` - Unit tests.
-- `tests/Integration` - Integration tests.
+- `tests/Application` - Tests for the application actions.
+- `tests/Cli` - Tests for the CLI.
+- `tests/Domain` - Tests mirroring the structure of `src/Domain`.
 
 ## Design Decisions
 

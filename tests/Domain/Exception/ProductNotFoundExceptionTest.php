@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit\Exception;
+namespace App\Tests\Domain\Exception;
 
 use App\Domain\Exception\ProductNotFoundException;
 use PHPUnit\Framework\TestCase;

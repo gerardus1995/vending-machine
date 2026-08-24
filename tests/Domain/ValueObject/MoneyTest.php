@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Domain\ValueObject;
 
 use App\Domain\Exception\InvalidMoneyException;
 use App\Domain\ValueObject\Money;

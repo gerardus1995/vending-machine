@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Application;
 
 use App\Application\InsertCoinAction;
 use App\Application\PurchaseProductAction;

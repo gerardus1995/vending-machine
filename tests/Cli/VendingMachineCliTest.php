@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Cli;
 
 use App\Cli\VendingMachineCli;
 use App\Domain\VendingMachine;

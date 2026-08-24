@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Domain\Calculator;
 
 use App\Domain\Calculator\GreedyChangeCalculator;
 use App\Domain\Exception\InsufficientChangeException;

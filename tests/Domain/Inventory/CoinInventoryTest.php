@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit;
+namespace App\Tests\Domain\Inventory;
 
 use App\Domain\Exception\InvalidCoinException;
 use App\Domain\Inventory\CoinInventory;
