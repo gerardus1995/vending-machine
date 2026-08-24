@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\Money;
-use App\Domain\Product;
+use App\Domain\Entity\Product;
+use App\Domain\ValueObject\Money;
 use PHPUnit\Framework\TestCase;
 
 /**

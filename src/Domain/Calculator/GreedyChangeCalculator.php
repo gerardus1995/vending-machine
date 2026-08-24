@@ -2,41 +2,67 @@
 
 declare(strict_types=1);
 
-namespace App\Domain;
+namespace App\Domain\Calculator;
 
-class GreedyChangeCalculator implements ChangeCalculatorInterface
+use App\Domain\Exception\InsufficientChangeException;
+use App\Domain\ValueObject\Coin;
+use App\Domain\ValueObject\Money;
+
+/**
+ * Calculates change with the classic greedy algorithm: repeatedly take as many
+ * coins of the largest denomination as the remaining amount and availability allow.
+ *
+ * Trade-off note: greedy produces the fewest possible coins for canonical
+ * denomination systems such as this challenge's {5, 10, 25, 100}. It does NOT
+ * guarantee that a solution exists (nor optimality) for arbitrary coin systems -
+ * e.g. with denominations {1, 3, 4} and amount 6 greedy gives 4+1+1 while 3+3 is
+ * optimal. If the denomination set ever becomes non-canonical, only this class
+ * needs to change; its contract stays the same.
+ */
+final class GreedyChangeCalculator
 {
+    /**
+     * Calculates exact change without mutating anything: the caller remains free
+     * to decide whether (and in which order) to apply the result.
+     *
+     * @param array<int, int> $availableCoins mapping of denomination (cents) to available quantity
+     *
+     * @return list<Coin> the actual change coins, highest denomination first
+     *
+     * @throws \InvalidArgumentException   when the requested amount is negative
+     * @throws InsufficientChangeException when exact change cannot be made
+     */
     public function calculate(int $amountCents, array $availableCoins): array
     {
         if ($amountCents < 0) {
-            throw new \InvalidArgumentException('Amount to change cannot be negative');
+            throw new \InvalidArgumentException('Change amount cannot be negative');
         }
 
-        // Sort denominations in descending order
+        $change = [];
+        $remaining = $amountCents;
+
         $denominations = array_keys($availableCoins);
         rsort($denominations);
 
-        $remaining = $amountCents;
-        $change = [];
-
-        foreach ($denominations as $denom) {
-            if ($remaining <= 0) {
+        foreach ($denominations as $denomination) {
+            if (0 === $remaining) {
                 break;
             }
-            $available = $availableCoins[$denom] ?? 0;
-            if ($available <= 0) {
-                continue;
+
+            $used = min(intdiv($remaining, $denomination), $availableCoins[$denomination]);
+
+            for ($i = 0; $i < $used; ++$i) {
+                $change[] = Coin::fromCents($denomination);
             }
-            // How many coins of this denomination we can use
-            $count = min(intdiv($remaining, $denom), $available);
-            if ($count > 0) {
-                $change[$denom] = $count;
-                $remaining -= $count * $denom;
-            }
+
+            $remaining -= $used * $denomination;
         }
 
         if ($remaining > 0) {
-            throw new \DomainException('Cannot make exact change with available coins');
+            throw new InsufficientChangeException(sprintf(
+                'Cannot make exact change of %s from the available coins',
+                (string) Money::fromCents($amountCents)
+            ));
         }
 
         return $change;

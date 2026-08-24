@@ -4,182 +4,184 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
+use App\Domain\Calculator\GreedyChangeCalculator;
+use App\Domain\Entity\Product;
+use App\Domain\Exception\InsufficientChangeException;
 use App\Domain\Exception\InsufficientFundsException;
+use App\Domain\Exception\InvalidCoinException;
 use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
+use App\Domain\Inventory\CoinInventory;
+use App\Domain\Result\PurchaseResult;
+use App\Domain\ValueObject\Coin;
+use App\Domain\ValueObject\Money;
 
 /**
- * The VendingMachine aggregate orchestrates the vending machine functionality.
- * It maintains separate inventories for products and change, and tracks the current transaction.
+ * Aggregate root of the vending machine.
+ *
+ * Owns the product catalogue and stock, the change fund (CoinInventory) and the
+ * current customer transaction. All business operations are atomic: when any
+ * validation fails, no state is modified.
  */
 final class VendingMachine
 {
-    /**
-     * @var array<string, int> Mapping of product ID to available quantity
-     */
+    /** @var array<string, Product> keyed by product id */
+    private array $products;
+
+    /** @var array<string, int> product id => units in stock */
     private array $productStock;
 
-    /**
-     * @var array<int, int> mapping of coin denomination (cents) to available quantity
-     *                      This represents the machine's change fund
-     */
-    private array $coinInventory;
+    private CoinInventory $coinInventory;
 
-    /**
-     * @var Coin[] Array of Coin objects inserted by the customer in the current transaction
-     */
+    /** @var list<Coin> coins inserted by the customer in the current transaction */
     private array $insertedCoins = [];
 
-    private ProductRepositoryInterface $productRepository;
-    private ChangeCalculatorInterface $changeCalculator;
+    private readonly GreedyChangeCalculator $changeCalculator;
 
-    /**
-     * @param ProductRepositoryInterface $productRepository Repository for product lookup
-     * @param ChangeCalculatorInterface  $changeCalculator  Service for calculating change
-     */
-    public function __construct(
-        ProductRepositoryInterface $productRepository,
-        ChangeCalculatorInterface $changeCalculator
-    ) {
-        $this->productRepository = $productRepository;
-        $this->changeCalculator = $changeCalculator;
-
-        // Initialize empty inventories
+    public function __construct()
+    {
+        $this->products = [
+            'water' => new Product('water', 'Water', Money::fromString('0.65')),
+            'juice' => new Product('juice', 'Juice', Money::fromString('1.00')),
+            'soda' => new Product('soda', 'Soda', Money::fromString('1.50')),
+        ];
         $this->productStock = [];
-        $this->coinInventory = [];
+        $this->coinInventory = new CoinInventory();
+        $this->changeCalculator = new GreedyChangeCalculator();
     }
 
-    /**
-     * Insert a coin into the current transaction.
-     *
-     * @param Coin $coin The coin to insert
-     */
     public function insertCoin(Coin $coin): void
     {
         $this->insertedCoins[] = $coin;
     }
 
     /**
-     * Return all coins inserted in the current transaction and clear the transaction.
+     * Returns exactly the coins inserted by the customer and clears the
+     * transaction. The machine's own coin fund is not touched.
      *
-     * @return Coin[] Array of inserted coins
+     * @return list<Coin>
      */
     public function returnCoins(): array
     {
-        $coins = $this->insertedCoins;
+        $returnedCoins = $this->insertedCoins;
         $this->insertedCoins = [];
 
-        return $coins;
+        return $returnedCoins;
     }
 
     /**
-     * Attempt to purchase a product.
+     * Purchases the selected product with the currently inserted coins.
      *
-     * @param string $productId The ID of the product to purchase
+     * Change is calculated against the machine's coin fund AS IT WAS BEFORE this
+     * transaction: the inserted customer coins are not part of it yet and are
+     * therefore never used to make change for their own purchase.
      *
-     * @return PurchaseResult The purchased product and change to return
-     *
-     * @throws ProductNotFoundException   If the product ID is not found
-     * @throws OutOfStockException        If the product is out of stock
-     * @throws InsufficientFundsException If inserted coins don't cover the product price
-     * @throws \DomainException           If exact change cannot be made
+     * @throws ProductNotFoundException    when the product does not exist
+     * @throws OutOfStockException         when the product has no stock left
+     * @throws InsufficientFundsException  when the inserted money does not cover the price
+     * @throws InsufficientChangeException when the machine cannot provide exact change
      */
     public function selectProduct(string $productId): PurchaseResult
     {
-        // 1. Validate that we have a transaction in progress
-        if (empty($this->insertedCoins)) {
-            throw new InsufficientFundsException('No coins inserted');
-        }
+        // 1. Validate the product exists.
+        $product = $this->products[$productId]
+            ?? throw new ProductNotFoundException(sprintf('Product "%s" does not exist', $productId));
 
-        // 2. Find the product
-        $product = $this->productRepository->findById($productId);
-        if (null === $product) {
-            throw new ProductNotFoundException(sprintf('Product with ID "%s" not found', $productId));
-        }
-
-        // 3. Check stock
-        $productIdKey = $product->id();
-        if (!isset($this->productStock[$productIdKey]) || $this->productStock[$productIdKey] <= 0) {
+        // 2. Validate the product is in stock.
+        if (($this->productStock[$productId] ?? 0) < 1) {
             throw new OutOfStockException(sprintf('Product "%s" is out of stock', $product->name()));
         }
 
-        // 4. Calculate total inserted amount
-        $insertedTotal = 0;
-        foreach ($this->insertedCoins as $coin) {
-            $insertedTotal += $coin->toCents();
+        // 3. Validate sufficient inserted money.
+        $insertedAmount = $this->insertedAmount();
+        if ($insertedAmount->isZero()) {
+            throw new InsufficientFundsException('No coins inserted');
         }
 
-        // 5. Check if sufficient funds
-        $productPrice = $product->price()->cents();
-        if ($insertedTotal < $productPrice) {
+        $price = $product->price();
+        if (!$insertedAmount->greaterThanOrEqual($price)) {
             throw new InsufficientFundsException(sprintf(
-                'Insufficient funds. Inserted: %0.2f, Required: %0.2f',
-                $insertedTotal / 100,
-                $productPrice / 100
+                'Insufficient funds for "%s": inserted %s, price %s',
+                $product->name(),
+                (string) $insertedAmount,
+                (string) $price
             ));
         }
 
-        // 6. Calculate change needed
-        $changeAmount = $insertedTotal - $productPrice;
+        // 4./5. Calculate the required change against the pre-transaction fund only.
+        $changeDue = $insertedAmount->subtract($price);
+        $changeCoins = $this->changeCalculator->calculate(
+            $changeDue->cents(),
+            $this->coinInventory->quantities()
+        );
 
-        // 7. Calculate change using available coins (atomic - validate before mutating state)
-        $changeCoins = $this->changeCalculator->calculate($changeAmount, $this->coinInventory);
+        // 6. Every validation passed - commit the transaction atomically.
+        --$this->productStock[$productId];
 
-        // 8. If we reach here, all validations passed. Now mutate state atomically.
-
-        // Decrement product stock
-        --$this->productStock[$productIdKey];
-
-        // Add inserted coins to machine's inventory
         foreach ($this->insertedCoins as $coin) {
-            $denom = $coin->toCents();
-            $this->coinInventory[$denom] = ($this->coinInventory[$denom] ?? 0) + 1;
+            $this->coinInventory->addCoins($coin);
+        }
+        foreach ($changeCoins as $coin) {
+            $this->coinInventory->removeCoins($coin);
         }
 
-        // Subtract change coins from machine's inventory
-        foreach ($changeCoins as $denom => $count) {
-            $this->coinInventory[$denom] = ($this->coinInventory[$denom] ?? 0) - $count;
-            // Ensure we don't go negative (shouldn't happen if calculator worked correctly)
-            if ($this->coinInventory[$denom] < 0) {
-                $this->coinInventory[$denom] = 0;
-            }
-        }
-
-        // Clear current transaction
         $this->insertedCoins = [];
 
-        // 9. Return result
-        $changeMoney = Money::fromCents($changeAmount);
-
-        return new PurchaseResult($product, $changeMoney);
+        return new PurchaseResult($product, $changeCoins);
     }
 
     /**
-     * Reconfigure the machine's product stock and coin inventory.
-     * Rejected if there are coins inserted in the current transaction.
+     * Replaces the product stock and the coin fund with a service configuration.
+     * Both are treated as full replacements, not additive changes.
      *
-     * @param array<string, int> $productStock  Mapping of product ID to quantity
-     * @param array<int, int>    $coinInventory Mapping of coin denomination (cents) to quantity
+     * The whole configuration is validated before any machine state is modified,
+     * so an invalid configuration leaves the machine completely unchanged.
      *
-     * @throws InvalidServiceOperationException If coins are inserted in current transaction
+     * @param array<string, int> $productStock   product id => units in stock
+     * @param array<int, int>    $coinQuantities denomination (cents) => quantity
+     *
+     * @throws InvalidServiceOperationException when coins are inserted
+     * @throws ProductNotFoundException         when the configuration names an unknown product
+     * @throws InvalidCoinException             when a denomination is not accepted
+     * @throws \InvalidArgumentException        when any configured quantity is negative
      */
-    public function service(array $productStock, array $coinInventory): void
+    public function service(array $productStock, array $coinQuantities): void
     {
-        if (!empty($this->insertedCoins)) {
+        if ([] !== $this->insertedCoins) {
             throw new InvalidServiceOperationException(
-                'Cannot service machine while coins are inserted in current transaction'
+                'Cannot service the machine while customer coins are inserted'
             );
         }
 
+        // Build and validate everything before touching current state.
+        $newCoinInventory = new CoinInventory($coinQuantities);
+
+        foreach ($productStock as $stockProductId => $quantity) {
+            if (!isset($this->products[$stockProductId])) {
+                throw new ProductNotFoundException(sprintf(
+                    'Unknown product "%s" in service configuration',
+                    $stockProductId
+                ));
+            }
+
+            if ($quantity < 0) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Stock quantity for product "%s" cannot be negative',
+                    $stockProductId
+                ));
+            }
+        }
+
+        // Commit.
         $this->productStock = $productStock;
-        $this->coinInventory = $coinInventory;
+        $this->coinInventory = $newCoinInventory;
     }
 
     /**
-     * Get the current product stock (for testing/inspection).
+     * Current stock per product id. Read-only snapshot of the aggregate state.
      *
-     * @return array<string, int> Mapping of product ID to quantity
+     * @return array<string, int>
      */
     public function getProductStock(): array
     {
@@ -187,27 +189,31 @@ final class VendingMachine
     }
 
     /**
-     * Get the current coin inventory (for testing/inspection).
+     * Current change fund as denomination (cents) => quantity.
+     * Read-only snapshot: the returned array is a copy.
      *
-     * @return array<int, int> Mapping of coin denomination to quantity
+     * @return array<int, int>
      */
     public function getCoinInventory(): array
     {
-        return $this->coinInventory;
+        return $this->coinInventory->quantities();
     }
 
     /**
-     * Get the total value of inserted coins in the current transaction.
-     *
-     * @return int Total cents inserted
+     * Total value currently inserted by the customer, in cents.
      */
     public function getInsertedTotal(): int
     {
-        $total = 0;
+        return $this->insertedAmount()->cents();
+    }
+
+    private function insertedAmount(): Money
+    {
+        $totalCents = 0;
         foreach ($this->insertedCoins as $coin) {
-            $total += $coin->toCents();
+            $totalCents += $coin->toCents();
         }
 
-        return $total;
+        return Money::fromCents($totalCents);
     }
 }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\Coin;
 use App\Domain\Exception\InvalidCoinException;
+use App\Domain\ValueObject\Coin;
 use PHPUnit\Framework\TestCase;
 
 /**

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php"
          colors="true"
-         stopOnFailure="false"
-         verbose="true">
+         stopOnFailure="false">
     <testsuites>
         <testsuite name="Unit">
             <directory suffix="Test.php">./tests/Unit</directory>
@@ -11,11 +10,11 @@
             <directory suffix="Test.php">./tests/Integration</directory>
         </testsuite>
     </testsuites>
-    <filter>
-        <whitelist processUncoveredFilesFromWhitelist="true">
+    <source>
+        <include>
             <directory suffix=".php">./src</directory>
-        </whitelist>
-    </filter>
+        </include>
+    </source>
     <php>
         <env name="APP_ENV" value="test"/>
     </php>

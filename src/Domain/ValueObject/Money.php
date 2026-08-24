@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain;
+namespace App\Domain\ValueObject;
 
 use App\Domain\Exception\InvalidMoneyException;
 
@@ -39,12 +39,32 @@ final class Money
     {
         // Remove any leading/trailing whitespace
         $amount = trim($amount);
+
         // Check if the string matches a decimal with up to two decimal places
         if (!preg_match('/^\d+(\.\d{1,2})?$/', $amount)) {
             throw new InvalidMoneyException('Invalid money format');
         }
-        // Convert to cents
-        $cents = (int) round(floatval($amount) * 100);
+
+        // Split into dollars and cents parts
+        if (false !== strpos($amount, '.')) {
+            $parts = explode('.', $amount);
+            $dollars = $parts[0];
+            $centsPart = $parts[1];
+
+            // Ensure cents part has exactly 2 digits
+            if (1 === strlen($centsPart)) {
+                $centsPart .= '0';
+            } elseif (strlen($centsPart) > 2) {
+                // This shouldn't happen due to regex, but just in case
+                throw new InvalidMoneyException('Invalid money format');
+            }
+
+            $cents = (int) $dollars * 100 + (int) $centsPart;
+        } else {
+            // No decimal point, whole dollar amount
+            $cents = (int) $amount * 100;
+        }
+
         // Ensure non-negative (though regex already ensures no minus sign)
         if ($cents < 0) {
             throw new InvalidMoneyException('Money amount cannot be negative');

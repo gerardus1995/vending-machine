@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Domain\Exception\InvalidMoneyException;
-use App\Domain\Money;
+use App\Domain\ValueObject\Money;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -25,6 +25,16 @@ final class MoneyTest extends TestCase
     {
         $money = Money::fromString('0.65');
         $this->assertSame(65, $money->cents());
+    }
+
+    public function testCanBeCreatedFromStringWithSpecificExamples(): void
+    {
+        $this->assertSame(5, Money::fromString('0.05')->cents());
+        $this->assertSame(10, Money::fromString('0.10')->cents());
+        $this->assertSame(25, Money::fromString('0.25')->cents());
+        $this->assertSame(100, Money::fromString('1')->cents());
+        $this->assertSame(100, Money::fromString('1.00')->cents());
+        $this->assertSame(150, Money::fromString('1.5')->cents());
     }
 
     public function testRejectsNegativeCentsInConstructor(): void

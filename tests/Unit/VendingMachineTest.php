@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\Coin;
+use App\Domain\Exception\InsufficientChangeException;
 use App\Domain\Exception\InsufficientFundsException;
+use App\Domain\Exception\InvalidCoinException;
 use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
-use App\Domain\GreedyChangeCalculator;
-use App\Domain\InMemoryProductRepository;
-use App\Domain\Product;
-use App\Domain\PurchaseResult;
+use App\Domain\ValueObject\Coin;
 use App\Domain\VendingMachine;
 use PHPUnit\Framework\TestCase;
 
@@ -23,259 +21,301 @@ use PHPUnit\Framework\TestCase;
  */
 final class VendingMachineTest extends TestCase
 {
-    private VendingMachine $vendingMachine;
-    private InMemoryProductRepository $productRepository;
-    private GreedyChangeCalculator $changeCalculator;
+    private const DEFAULT_STOCK = ['water' => 5, 'juice' => 5, 'soda' => 5];
+    private const FULL_FUND = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
+
+    private VendingMachine $machine;
 
     protected function setUp(): void
     {
-        $this->productRepository = InMemoryProductRepository::createDefault();
-        $this->changeCalculator = new GreedyChangeCalculator();
-        $this->vendingMachine = new VendingMachine(
-            $this->productRepository,
-            $this->changeCalculator
-        );
+        $this->machine = new VendingMachine();
     }
 
-    public function testInitiallyEmptyInventories(): void
+    public function testNewMachineHasNoStockNoFundAndNoInsertedMoney(): void
     {
-        $this->assertEquals([], $this->vendingMachine->getProductStock());
-        $this->assertEquals([], $this->vendingMachine->getCoinInventory());
-        $this->assertEquals(0, $this->vendingMachine->getInsertedTotal());
+        self::assertSame([], $this->machine->getProductStock());
+        self::assertSame([], $this->machine->getCoinInventory());
+        self::assertSame(0, $this->machine->getInsertedTotal());
     }
 
-    public function testInsertCoinAndReturnCoins(): void
+    public function testValidCoinsAreAcceptedIntoTheTransaction(): void
     {
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE); // 25 cents
-        $this->vendingMachine->insertCoin(Coin::TEN);         // 10 cents
-        $this->vendingMachine->insertCoin(Coin::FIVE);        // 5 cents
+        $this->insertCoins(Coin::ONE_HUNDRED, Coin::TWENTY_FIVE, Coin::TEN, Coin::FIVE);
 
-        $inserted = $this->vendingMachine->returnCoins();
-        $this->assertCount(3, $inserted);
-        $this->assertContains(Coin::TWENTY_FIVE, $inserted);
-        $this->assertContains(Coin::TEN, $inserted);
-        $this->assertContains(Coin::FIVE, $inserted);
-
-        // After returnCoins, the transaction should be cleared
-        $this->assertEquals(0, $this->vendingMachine->getInsertedTotal());
+        self::assertSame(140, $this->machine->getInsertedTotal());
     }
 
-    public function testSelectProductSuccessExactChange(): void
+    public function testOnlySupportedDenominationsExist(): void
     {
-        // Set up the machine with one water in stock and no coins in inventory (we don't need change for exact change)
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1], // product stock
-            [] // coin inventory - we don't need to give change
-        );
+        $this->expectException(InvalidCoinException::class);
 
-        // Insert exactly 65 cents (price of Water)
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE); // 25
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE); // 25
-        $this->vendingMachine->insertCoin(Coin::TEN);         // 10
-        $this->vendingMachine->insertCoin(Coin::FIVE);        // 5
-
-        $result = $this->vendingMachine->selectProduct('water');
-
-        $this->assertInstanceOf(PurchaseResult::class, $result);
-        $this->assertEquals('water', $result->product()->id());
-        $this->assertEquals('Water', $result->product()->name());
-        $this->assertEquals(0, $result->change()->cents()); // No change
-
-        // Check state changes: product stock decreased (water), coin inventory updated
-        $this->assertEquals(0, $this->vendingMachine->getProductStock()['water']); // water stock decreased from 1 to 0
-        $this->assertEquals(1, $this->vendingMachine->getProductStock()['juice']); // juice unchanged
-        $this->assertEquals(1, $this->vendingMachine->getProductStock()['soda']); // soda unchanged
-        // Coin inventory: we inserted 2x25c, 1x10c, 1x5c (total 65) and gave back 0 change, so machine should have those coins
-        $this->assertEquals(2, $this->vendingMachine->getCoinInventory()[25] ?? 0);
-        $this->assertEquals(1, $this->vendingMachine->getCoinInventory()[10] ?? 0);
-        $this->assertEquals(1, $this->vendingMachine->getCoinInventory()[5] ?? 0);
-        // Transaction cleared
-        $this->assertEquals(0, $this->vendingMachine->getInsertedTotal());
+        Coin::fromCents(30); // 30 cents is not a supported denomination
     }
 
-    public function testSelectProductSuccessWithChange(): void
+    public function testReturnCoinGivesBackExactlyTheInsertedCoins(): void
     {
-        // First, set up the machine with a proper coin inventory for making change
-        // Service the machine with some coins and product stock
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1], // product stock
-            [5 => 10, 10 => 10, 25 => 10, 100 => 10]  // ample change fund
-        );
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
+        $this->insertCoins(Coin::TEN, Coin::TEN);
 
-        // Insert 200 cents (two dollars) for a Soda (150 cents) -> change 50 cents
-        $this->vendingMachine->insertCoin(Coin::ONE_HUNDRED); // 100
-        $this->vendingMachine->insertCoin(Coin::ONE_HUNDRED); // 100
+        $returnedCoins = $this->machine->returnCoins();
 
-        $result = $this->vendingMachine->selectProduct('soda');
-
-        $this->assertInstanceOf(PurchaseResult::class, $result);
-        $this->assertEquals('soda', $result->product()->id());
-        $this->assertEquals('Soda', $result->product()->name());
-        $this->assertEquals(50, $result->change()->cents());
-
-        // Check state: Soda stock decreased by 1 (assuming default stock is 1)
-        $this->assertEquals(0, $this->vendingMachine->getProductStock()['soda']);
-        // Coin inventory: inserted two 100c coins, returned change for 50c
-        // For 50c change, greedy algorithm with available coins [5,10,25,100] will use 2x25c
-        $this->assertEquals(12, $this->vendingMachine->getCoinInventory()[100] ?? 0); // initial 10 + inserted 2 = 12
-        $this->assertEquals(8, $this->vendingMachine->getCoinInventory()[25] ?? 0);    // initial 10 - used 2 for change = 8
-        $this->assertEquals(10, $this->vendingMachine->getCoinInventory()[10] ?? 0);  // unchanged
-        $this->assertEquals(10, $this->vendingMachine->getCoinInventory()[5] ?? 0);   // unchanged
-        // Transaction cleared
-        $this->assertEquals(0, $this->vendingMachine->getInsertedTotal());
+        self::assertSame([Coin::TEN, Coin::TEN], $returnedCoins);
+        self::assertSame(0, $this->machine->getInsertedTotal());
+        // The machine's own fund must not be touched by RETURN-COIN.
+        self::assertSame(self::FULL_FUND, $this->machine->getCoinInventory());
+        self::assertSame([], $this->machine->returnCoins()); // transaction was cleared
     }
 
-    public function testSelectProductInsufficientFunds(): void
+    public function testExactPaymentDispensesTheProductWithoutChange(): void
     {
-        // Set up juice in stock so we get InsufficientFunds, not OutOfStock
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1],
-            [] // coin inventory doesn't matter for this test
-        );
+        $this->machine->service(['water' => 1, 'juice' => 1, 'soda' => 1], []);
+        $this->insertCoins(Coin::TWENTY_FIVE, Coin::TWENTY_FIVE, Coin::TEN, Coin::FIVE); // 65
 
-        // Insert 50 cents, try to buy Juice (100 cents)
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE); // 25
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE); // 25
+        $result = $this->machine->selectProduct('water');
 
-        $this->expectException(InsufficientFundsException::class);
-        $this->vendingMachine->selectProduct('juice');
+        self::assertSame('water', $result->getProduct()->id());
+        self::assertSame('Water', $result->getProduct()->name());
+        self::assertSame([], $result->getChangeCoins());
+        self::assertTrue($result->getChangeTotal()->isZero());
 
-        // State should be unchanged: coin inventory should still be empty, inserted coins should still be there (until we return or make a purchase)
-        // Actually, on failure, no state should be mutated. So the inserted coins are still in the transaction.
-        $this->assertEquals(50, $this->vendingMachine->getInsertedTotal());
-        $this->assertEquals([], $this->vendingMachine->getCoinInventory()); // No change to machine's inventory
-        $this->assertEquals(1, $this->vendingMachine->getProductStock()['juice']); // Juice stock unchanged
+        self::assertSame(0, $this->machine->getProductStock()['water']);
+        // The inserted coins joined the machine's fund.
+        self::assertSame([25 => 2, 10 => 1, 5 => 1], $this->machine->getCoinInventory());
+        self::assertSame(0, $this->machine->getInsertedTotal());
     }
 
-    public function testSelectProductProductNotFound(): void
+    public function testChangeConsistsOfActualCoinsFromTheFund(): void
     {
-        // Ensure product stock is set so we don't get OutOfStock
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1],
-            []
-        );
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
 
-        $this->vendingMachine->insertCoin(Coin::ONE_HUNDRED);
+        $this->insertCoins(Coin::ONE_HUNDRED);
+        $result = $this->machine->selectProduct('water'); // change due: 35
 
-        $this->expectException(ProductNotFoundException::class);
-        $this->vendingMachine->selectProduct('nonexistent');
-
-        // State unchanged: inserted coin still in transaction, machine inventory unchanged
-        $this->assertEquals(100, $this->vendingMachine->getInsertedTotal());
-        $this->assertEquals([], $this->vendingMachine->getCoinInventory());
+        self::assertSame([Coin::TWENTY_FIVE, Coin::TEN], $result->getChangeCoins());
+        self::assertSame(35, $result->getChangeTotal()->cents());
     }
 
-    public function testSelectProductOutOfStock(): void
+    public function testPurchaseConsumesFundCoinsAndAbsorbsTheInsertedOnes(): void
     {
-        // Set up initial stock: one water
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1],
-            [] // coin inventory
-        );
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
 
-        // First, buy the last unit of a product to deplete stock
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE);
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE);
-        $this->vendingMachine->insertCoin(Coin::TEN);
-        $this->vendingMachine->insertCoin(Coin::FIVE); // 65 for Water
+        $this->insertCoins(Coin::ONE_HUNDRED, Coin::ONE_HUNDRED); // soda 150 -> change 50
+        $this->machine->selectProduct('soda');
 
-        $this->vendingMachine->selectProduct('water'); // This should succeed and deplete Water stock
-
-        // Now try to buy Water again
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE);
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE);
-        $this->vendingMachine->insertCoin(Coin::TEN);
-        $this->vendingMachine->insertCoin(Coin::FIVE); // 65 again
-
-        $this->expectException(OutOfStockException::class);
-        $this->vendingMachine->selectProduct('water');
-
-        // State: the inserted coins for the failed attempt should still be in the transaction
-        $this->assertEquals(65, $this->vendingMachine->getInsertedTotal());
-        // The machine's coin inventory should have the coins from the successful first transaction
-        // First transaction: inserted 65 (2x25c, 1x10c, 1x5c) and gave 0 change, so machine has those coins.
-        $this->assertEquals(2, $this->vendingMachine->getCoinInventory()[25] ?? 0);
-        $this->assertEquals(1, $this->vendingMachine->getCoinInventory()[10] ?? 0);
-        $this->assertEquals(1, $this->vendingMachine->getCoinInventory()[5] ?? 0);
-        // Water stock should be 0 (since we bought the last one)
-        $this->assertEquals(0, $this->vendingMachine->getProductStock()['water']);
+        $fund = $this->machine->getCoinInventory();
+        self::assertSame(12, $fund[100]); // 10 initial + 2 inserted
+        self::assertSame(8, $fund[25]);   // 10 - 2 returned as change
+        self::assertSame(10, $fund[10]);
+        self::assertSame(10, $fund[5]);
+        self::assertSame(0, $this->machine->getInsertedTotal());
     }
 
-    public function testSelectProductUnableToMakeChange(): void
-    {
-        // Set up the machine with no change fund (or insufficient change) and then try to buy a product requiring change.
-        // We'll use the service method to set the coin inventory to empty.
-        // We need to set product stock as well.
+    /**
+     * @param array<string, int>       $productStock
+     * @param array<int, int>          $coinQuantities
+     * @param class-string<\Throwable> $expectedException
+     *
+     * @dataProvider invalidServiceConfigurationProvider
+     */
+    public function testInvalidServiceConfigurationLeavesMachineCompletelyUnchanged(
+        string $reason,
+        array $productStock,
+        array $coinQuantities,
+        string $expectedException
+    ): void {
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
+        $stateBefore = $this->currentState();
 
-        // First, service the machine with empty coin inventory and some product stock
-        $this->vendingMachine->service(
-            ['water' => 1, 'juice' => 1, 'soda' => 1], // product stock
-            [] // empty coin inventory
-        );
+        $thrown = null;
 
-        // Now insert a dollar (100c) to buy a Water (65c) -> change 35c
-        // If the machine has no coins, it cannot make change.
+        try {
+            $this->machine->service($productStock, $coinQuantities);
+        } catch (\Throwable $exception) {
+            $thrown = $exception;
+        }
 
-        $this->vendingMachine->insertCoin(Coin::ONE_HUNDRED); // 100
-
-        $this->expectException(\DomainException::class);
-        $this->expectExceptionMessage('Cannot make exact change with available coins');
-        $this->vendingMachine->selectProduct('water');
-
-        // State: the inserted dollar should still be in the transaction (because the purchase failed)
-        $this->assertEquals(100, $this->vendingMachine->getInsertedTotal());
-        // Machine's coin inventory should still be empty (no transaction succeeded)
-        $this->assertEquals([], $this->vendingMachine->getCoinInventory());
-        // Product stock should be unchanged (Water still available)
-        $this->assertEquals(1, $this->vendingMachine->getProductStock()['water']);
+        self::assertNotNull($thrown, "Configuration '{$reason}' should have been rejected");
+        self::assertInstanceOf($expectedException, $thrown);
+        self::assertSame($stateBefore['stock'], $this->machine->getProductStock(), $reason);
+        self::assertSame($stateBefore['fund'], $this->machine->getCoinInventory(), $reason);
+        self::assertSame($stateBefore['inserted'], $this->machine->getInsertedTotal(), $reason);
     }
 
-    public function testServiceSuccess(): void
+    /**
+     * @return iterable<string, array{string, array<string, int>, array<int, int>, class-string<\Throwable>}>
+     */
+    public static function invalidServiceConfigurationProvider(): iterable
     {
-        // Set up new product stock and coin inventory
-        $newProductStock = ['water' => 5, 'juice' => 0, 'soda' => 2];
-        $newCoinInventory = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
+        yield 'unknown product id' => [
+            'unknown product id',
+            ['cola' => 3],
+            [],
+            ProductNotFoundException::class,
+        ];
 
-        $this->vendingMachine->service($newProductStock, $newCoinInventory);
+        yield 'negative product stock' => [
+            'negative product stock',
+            ['water' => -1],
+            [],
+            \InvalidArgumentException::class,
+        ];
 
-        $this->assertEquals($newProductStock, $this->vendingMachine->getProductStock());
-        $this->assertEquals($newCoinInventory, $this->vendingMachine->getCoinInventory());
+        yield 'invalid coin denomination' => [
+            'invalid coin denomination',
+            [],
+            [30 => 5],
+            InvalidCoinException::class,
+        ];
+
+        yield 'negative coin quantity' => [
+            'negative coin quantity',
+            [],
+            [25 => -2],
+            \InvalidArgumentException::class,
+        ];
     }
 
-    public function testServiceFailsWhenCoinsInserted(): void
+    public function testInsertedCustomerCoinsAreNeverUsedToMakeChange(): void
     {
-        // Insert a coin first
-        $this->vendingMachine->insertCoin(Coin::TWENTY_FIVE);
+        // A single quarter in the fund: on its own it cannot make the 35 change,
+        // but combined with the customer's inserted coins it would be enough.
+        $this->machine->service(self::DEFAULT_STOCK, [25 => 1]);
+        $this->insertCoins(Coin::ONE_HUNDRED);
 
-        $this->expectException(InvalidServiceOperationException::class);
-        $this->vendingMachine->service([], []);
+        try {
+            $this->machine->selectProduct('water'); // change due 35 = fund's 25 + customer's (forbidden) 10
+            self::fail('InsufficientChangeException was expected');
+        } catch (InsufficientChangeException) {
+            // expected
+        }
 
-        // State should be unchanged: the coin should still be in the transaction
-        $this->assertEquals(25, $this->vendingMachine->getInsertedTotal());
+        self::assertSame([25 => 1], $this->machine->getCoinInventory());
+        self::assertSame(100, $this->machine->getInsertedTotal());
+        self::assertSame(5, $this->machine->getProductStock()['water']);
     }
 
-    public function testAtomicityOnFailureNoStateMutation(): void
+    public function testServiceReplacesStockAndFundInsteadOfAddingToThem(): void
     {
-        // Set up the machine with a known coin inventory and product stock
-        $initialProductStock = ['water' => 1];
-        $initialCoinInventory = [25 => 4]; // four quarters
-        $this->vendingMachine->service($initialProductStock, $initialCoinInventory);
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
 
-        // Insert a coin (a dime) so we have some transaction
-        $this->vendingMachine->insertCoin(Coin::TEN); // 10 cents
+        $this->machine->service(['juice' => 2], [5 => 1]);
 
-        // Record the state before the failed operation
-        $productStockBefore = $this->vendingMachine->getProductStock();
-        $coinInventoryBefore = $this->vendingMachine->getCoinInventory();
-        $insertedBefore = $this->vendingMachine->getInsertedTotal();
+        self::assertSame(['juice' => 2], $this->machine->getProductStock());
+        self::assertSame([5 => 1], $this->machine->getCoinInventory());
+    }
 
-        // Attempt to buy a product that doesn't exist
-        $this->expectException(ProductNotFoundException::class);
-        $this->vendingMachine->selectProduct('nonexistent');
+    public function testServiceIsRejectedWhileCoinsAreInserted(): void
+    {
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
+        $this->insertCoins(Coin::TWENTY_FIVE);
 
-        // After the exception, the state should be exactly as before
-        $this->assertEquals($productStockBefore, $this->vendingMachine->getProductStock());
-        $this->assertEquals($coinInventoryBefore, $this->vendingMachine->getCoinInventory());
-        $this->assertEquals($insertedBefore, $this->vendingMachine->getInsertedTotal());
+        $stateBefore = $this->currentState();
+
+        try {
+            $this->machine->service(['water' => 9], [5 => 9]);
+            self::fail('InvalidServiceOperationException was expected');
+        } catch (InvalidServiceOperationException) {
+            // expected
+        }
+
+        self::assertSame($stateBefore, $this->currentState());
+    }
+
+    public function testOutOfStockLeavesAllStateUnchanged(): void
+    {
+        $this->machine->service(['water' => 1, 'juice' => 5, 'soda' => 5], []);
+        $this->insertCoins(Coin::TWENTY_FIVE, Coin::TWENTY_FIVE, Coin::TEN, Coin::FIVE);
+        $this->machine->selectProduct('water'); // sells the last water
+
+        $fundAfterFirstSale = $this->machine->getCoinInventory();
+        $stockAfterFirstSale = $this->machine->getProductStock();
+        $this->insertCoins(Coin::TWENTY_FIVE, Coin::TWENTY_FIVE, Coin::TEN, Coin::FIVE); // retry
+
+        try {
+            $this->machine->selectProduct('water');
+            self::fail('OutOfStockException was expected');
+        } catch (OutOfStockException) {
+            // expected
+        }
+
+        self::assertSame($stockAfterFirstSale, $this->machine->getProductStock());
+        self::assertSame($fundAfterFirstSale, $this->machine->getCoinInventory());
+        self::assertSame(65, $this->machine->getInsertedTotal()); // failed attempt still refundable
+    }
+
+    public function testPurchaseFailsWhenFundCannotProvideExactChange(): void
+    {
+        // The prompt example: empty fund, customer inserts 1.00 for Water (0.65).
+        $this->machine->service(self::DEFAULT_STOCK, []);
+        $this->insertCoins(Coin::ONE_HUNDRED);
+
+        $stateBefore = $this->currentState();
+
+        try {
+            $this->machine->selectProduct('water');
+            self::fail('InsufficientChangeException was expected');
+        } catch (InsufficientChangeException) {
+            // expected
+        }
+
+        self::assertSame($stateBefore, $this->currentState());
+
+        // Nothing was committed, so the customer's money is still theirs.
+        self::assertSame([Coin::ONE_HUNDRED], $this->machine->returnCoins());
+    }
+
+    public function testInsufficientFundsLeavesAllStateUnchanged(): void
+    {
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
+        $this->insertCoins(Coin::TWENTY_FIVE, Coin::TWENTY_FIVE); // 50 < juice price
+
+        $stateBefore = $this->currentState();
+
+        try {
+            $this->machine->selectProduct('juice');
+            self::fail('InsufficientFundsException was expected');
+        } catch (InsufficientFundsException) {
+            // expected
+        }
+
+        self::assertSame($stateBefore, $this->currentState());
+    }
+
+    public function testUnknownProductLeavesAllStateUnchanged(): void
+    {
+        $this->machine->service(self::DEFAULT_STOCK, self::FULL_FUND);
+        $this->insertCoins(Coin::ONE_HUNDRED);
+
+        $stateBefore = $this->currentState();
+
+        try {
+            $this->machine->selectProduct('cola');
+            self::fail('ProductNotFoundException was expected');
+        } catch (ProductNotFoundException) {
+            // expected
+        }
+
+        self::assertSame($stateBefore, $this->currentState());
+    }
+
+    private function insertCoins(Coin ...$coins): void
+    {
+        foreach ($coins as $coin) {
+            $this->machine->insertCoin($coin);
+        }
+    }
+
+    /**
+     * Full read-only snapshot of every piece of machine state.
+     *
+     * @return array{stock: array<string, int>, fund: array<int, int>, inserted: int}
+     */
+    private function currentState(): array
+    {
+        return [
+            'stock' => $this->machine->getProductStock(),
+            'fund' => $this->machine->getCoinInventory(),
+            'inserted' => $this->machine->getInsertedTotal(),
+        ];
     }
 }

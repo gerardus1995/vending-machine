@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\Money;
-use App\Domain\Product;
-use App\Domain\PurchaseResult;
+use App\Domain\Entity\Product;
+use App\Domain\Result\PurchaseResult;
+use App\Domain\ValueObject\Coin;
+use App\Domain\ValueObject\Money;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -16,25 +17,30 @@ use PHPUnit\Framework\TestCase;
  */
 final class PurchaseResultTest extends TestCase
 {
-    public function testCanBeCreatedWithProductAndChange(): void
+    public function testCarriesTheProductAndTheActualChangeCoins(): void
     {
         $product = new Product('water', 'Water', Money::fromString('0.65'));
-        $change = Money::fromCents(35);
-        $result = new PurchaseResult($product, $change);
+        $result = new PurchaseResult($product, [Coin::TWENTY_FIVE, Coin::TEN]);
 
-        $this->assertSame($product, $result->product());
-        $this->assertSame($change, $result->change());
+        self::assertSame($product, $result->getProduct());
+        self::assertSame([Coin::TWENTY_FIVE, Coin::TEN], $result->getChangeCoins());
     }
 
-    public function testIsImmutable(): void
+    public function testChangeTotalIsDerivedFromTheChangeCoins(): void
     {
         $product = new Product('water', 'Water', Money::fromString('0.65'));
-        $change = Money::fromCents(35);
-        $result = new PurchaseResult($product, $change);
+        $result = new PurchaseResult($product, [Coin::TWENTY_FIVE, Coin::TEN]);
 
-        // We cannot change the properties after construction (no setters).
-        // This test just ensures the getters return the same objects.
-        $this->assertSame($product, $result->product());
-        $this->assertSame($change, $result->change());
+        self::assertSame(35, $result->getChangeTotal()->cents());
+        self::assertSame('0.35', (string) $result->getChangeTotal());
+    }
+
+    public function testExactPaymentResultsInEmptyChangeAndZeroTotal(): void
+    {
+        $product = new Product('juice', 'Juice', Money::fromString('1.00'));
+        $result = new PurchaseResult($product, []);
+
+        self::assertSame([], $result->getChangeCoins());
+        self::assertTrue($result->getChangeTotal()->isZero());
     }
 }

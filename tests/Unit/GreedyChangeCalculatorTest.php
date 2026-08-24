@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Unit;
 
-use App\Domain\ChangeCalculatorInterface;
-use App\Domain\GreedyChangeCalculator;
+use App\Domain\Calculator\GreedyChangeCalculator;
+use App\Domain\Exception\InsufficientChangeException;
+use App\Domain\ValueObject\Coin;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -15,84 +16,91 @@ use PHPUnit\Framework\TestCase;
  */
 final class GreedyChangeCalculatorTest extends TestCase
 {
-    private ChangeCalculatorInterface $calculator;
+    private GreedyChangeCalculator $calculator;
 
     protected function setUp(): void
     {
         $this->calculator = new GreedyChangeCalculator();
     }
 
-    public function testReturnsNoChangeForZeroAmount(): void
+    public function testReturnsNoCoinsForZeroAmount(): void
     {
-        $available = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
-        $change = $this->calculator->calculate(0, $available);
-        $this->assertEquals([], $change);
+        self::assertSame([], $this->calculator->calculate(0, [5 => 10, 10 => 10, 25 => 10, 100 => 10]));
     }
 
-    public function testReturnsExactChangeWithSingleDenomination(): void
+    public function testUsesASingleCoinWhenPossible(): void
     {
-        $available = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
-        $change = $this->calculator->calculate(25, $available);
-        $this->assertEquals([25 => 1], $change);
+        $change = $this->calculator->calculate(25, [5 => 10, 10 => 10, 25 => 10, 100 => 10]);
+
+        self::assertSame([Coin::TWENTY_FIVE], $change);
     }
 
-    public function testReturnsChangeWithMultipleDenominations(): void
+    public function testCombinesDenominationsForComplexAmounts(): void
     {
-        $available = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
-        $change = $this->calculator->calculate(65, $available);
-        // Expected: 25*2 + 10*1 + 5*1 = 65
-        $this->assertEquals([25 => 2, 10 => 1, 5 => 1], $change);
+        $change = $this->calculator->calculate(65, [5 => 10, 10 => 10, 25 => 10, 100 => 10]);
+
+        self::assertSame(
+            [Coin::TWENTY_FIVE, Coin::TWENTY_FIVE, Coin::TEN, Coin::FIVE],
+            $change
+        );
     }
 
-    public function testRespectsAvailableCoinLimits(): void
+    public function testRespectsAvailableQuantities(): void
     {
-        // Only one quarter available
-        $available = [5 => 10, 10 => 10, 25 => 1, 100 => 10];
-        $change = $this->calculator->calculate(65, $available);
-        // Should use one quarter, then need 40 cents: four dimes
-        $this->assertEquals([25 => 1, 10 => 4], $change);
+        // Only one quarter available: fall back to dimes for the rest.
+        $change = $this->calculator->calculate(65, [5 => 10, 10 => 10, 25 => 1, 100 => 10]);
+
+        self::assertSame(
+            [Coin::TWENTY_FIVE, Coin::TEN, Coin::TEN, Coin::TEN, Coin::TEN],
+            $change
+        );
     }
 
-    public function testThrowsExceptionWhenChangeCannotBeMade(): void
+    public function testPrefersTheLargestDenomination(): void
     {
-        $this->expectException(\DomainException::class);
-        $this->expectExceptionMessage('Cannot make exact change with available coins');
+        $change = $this->calculator->calculate(100, [5 => 10, 10 => 10, 25 => 10, 100 => 10]);
 
-        // No nickels, need to make 15 cents with only dimes and quarters -> impossible
-        $available = [5 => 0, 10 => 1, 25 => 1, 100 => 10];
-        $this->calculator->calculate(15, $available);
+        self::assertSame([Coin::ONE_HUNDRED], $change);
     }
 
-    public function testWorksWithOnlyNickels(): void
+    public function testMissingDenominationsAreTreatedAsUnavailable(): void
     {
-        $available = [5 => 20, 10 => 0, 25 => 0, 100 => 0];
-        $change = $this->calculator->calculate(30, $available);
-        $this->assertEquals([5 => 6], $change);
+        $change = $this->calculator->calculate(30, [5 => 10, 25 => 10]);
+
+        self::assertSame([Coin::TWENTY_FIVE, Coin::FIVE], $change);
     }
 
-    public function testPrefersLargerDenominations(): void
+    public function testWorksWithANickelOnlyFund(): void
     {
-        $available = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
-        $change = $this->calculator->calculate(100, $available);
-        // Should use one dollar coin, not four quarters or ten dimes, etc.
-        $this->assertEquals([100 => 1], $change);
+        $change = $this->calculator->calculate(30, [5 => 20]);
+
+        self::assertSame(
+            [Coin::FIVE, Coin::FIVE, Coin::FIVE, Coin::FIVE, Coin::FIVE, Coin::FIVE],
+            $change
+        );
     }
 
-    public function testHandlesMissingDenominationsInAvailableArray(): void
+    public function testThrowsWhenExactChangeIsImpossible(): void
     {
-        // Available array might not have all denominations; missing keys treated as zero
-        $available = [5 => 10, 25 => 10]; // no dimes or dollars
-        $change = $this->calculator->calculate(30, $available);
-        // Should use one quarter and one nickel
-        $this->assertEquals([25 => 1, 5 => 1], $change);
+        // 15 cents cannot be made from one dime and one quarter.
+        $this->expectException(InsufficientChangeException::class);
+
+        $this->calculator->calculate(15, [10 => 1, 25 => 1]);
     }
 
-    public function testThrowsExceptionForNegativeAmount(): void
+    public function testDoesNotMutateTheAvailabilityInput(): void
+    {
+        $availableCoins = [5 => 10, 10 => 10, 25 => 10];
+
+        $this->calculator->calculate(35, $availableCoins);
+
+        self::assertSame([5 => 10, 10 => 10, 25 => 10], $availableCoins);
+    }
+
+    public function testRejectsNegativeAmount(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Amount to change cannot be negative');
 
-        $available = [5 => 10, 10 => 10, 25 => 10, 100 => 10];
-        $this->calculator->calculate(-5, $available);
+        $this->calculator->calculate(-5, [5 => 10]);
     }
 }

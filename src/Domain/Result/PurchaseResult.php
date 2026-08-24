@@ -2,29 +2,49 @@
 
 declare(strict_types=1);
 
-namespace App\Domain;
+namespace App\Domain\Result;
+
+use App\Domain\Entity\Product;
+use App\Domain\ValueObject\Coin;
+use App\Domain\ValueObject\Money;
 
 /**
- * Represents the outcome of a successful product purchase.
+ * Outcome of a successful purchase: the dispensed product and the actual
+ * coins returned as change.
  */
 final class PurchaseResult
 {
-    private readonly Product $product;
-    private readonly Money $change;
+    /**
+     * @param list<Coin> $changeCoins
+     */
+    public function __construct(
+        private readonly Product $product,
+        private readonly array $changeCoins,
+    ) {}
 
-    public function __construct(Product $product, Money $change)
-    {
-        $this->product = $product;
-        $this->change = $change;
-    }
-
-    public function product(): Product
+    public function getProduct(): Product
     {
         return $this->product;
     }
 
-    public function change(): Money
+    /**
+     * @return list<Coin>
+     */
+    public function getChangeCoins(): array
     {
-        return $this->change;
+        return $this->changeCoins;
+    }
+
+    /**
+     * Derived convenience value: the total amount returned as change.
+     */
+    public function getChangeTotal(): Money
+    {
+        $totalCents = 0;
+        foreach ($this->changeCoins as $coin) {
+            $totalCents += $coin->toCents();
+        }
+
+        return Money::fromCents($totalCents);
     }
 }

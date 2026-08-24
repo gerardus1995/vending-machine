@@ -2,6 +2,7 @@
     "name": "gerard/vending-machine",
     "description": "A PHP 8.3 vending machine kata",
     "type": "project",
+    "bin": ["bin/vending-machine"],
     "require": {
         "php": "^8.3"
     },

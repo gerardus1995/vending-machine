@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Domain;
+namespace App\Domain\Entity;
+
+use App\Domain\ValueObject\Money;
 
 final class Product
 {
