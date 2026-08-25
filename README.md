@@ -2,6 +2,21 @@
 
 This is a PHP 8.3 implementation of a vending machine kata. The project follows a clean architecture with Domain, Application, and CLI layers.
 
+## Requirements
+
+### Functional
+- Accepts only these coins: **0.05**, **0.10**, **0.25** and **1.00**.
+- Sells three products at fixed prices: **Water 0.65**, **Juice 1.00** and **Soda 1.50** - every item has a count, a price and a selector.
+- Supported actions: insert one accepted coin, `RETURN-COIN` (refund all inserted money), `GET <product>` (dispense the product and return change) and `SERVICE` (replace product stock and change fund).
+- The machine always tracks available items, available change and currently inserted money.
+- A product is dispensed only when enough money has been inserted; otherwise the appropriate error is reported and no state changes.
+
+### Technical
+- PHP 8.3+
+- Composer
+- PHPUnit (behavioural test suite), PHPStan (static analysis) and PHP-CS-Fixer (code style)
+- Docker / Docker Compose (optional, for easy evaluation)
+
 ## Getting Started
 
 ### Prerequisites
@@ -70,6 +85,7 @@ composer cs-fix
 - `tests/Application` - Tests for the application actions.
 - `tests/Cli` - Tests for the CLI.
 - `tests/Domain` - Tests mirroring the structure of `src/Domain`.
+- `tests/Integration` - End-to-end tests running the real CLI binary.
 
 ## Design Decisions
 
