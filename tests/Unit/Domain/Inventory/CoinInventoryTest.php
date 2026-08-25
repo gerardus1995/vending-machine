@@ -107,29 +107,6 @@ final class CoinInventoryTest extends TestCase
         self::assertSame(2, $inventory->quantityOf(Coin::TWENTY_FIVE));
     }
 
-    public function testConfigureReplacesTheWholeFund(): void
-    {
-        $inventory = new CoinInventory([5 => 10, 25 => 10]);
-
-        $inventory->configure([10 => 4]);
-
-        self::assertSame([10 => 4], $inventory->quantities());
-    }
-
-    public function testFailedConfigureLeavesTheFundUntouched(): void
-    {
-        $inventory = new CoinInventory([25 => 4]);
-
-        try {
-            $inventory->configure([999 => 1]);
-            self::fail('InvalidCoinException was expected');
-        } catch (InvalidCoinException) {
-            // expected
-        }
-
-        self::assertSame([25 => 4], $inventory->quantities());
-    }
-
     public function testQuantitiesSnapshotCannotMutateTheInventory(): void
     {
         $inventory = new CoinInventory([25 => 4]);

@@ -53,11 +53,6 @@ final class ProductCatalogue
             ?? throw new ProductNotFoundException(sprintf('Product "%s" does not exist', $productId));
     }
 
-    public function has(string $productId): bool
-    {
-        return isset($this->products[$productId]);
-    }
-
     /**
      * @return list<string>
      */

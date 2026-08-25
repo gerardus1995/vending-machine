@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Unit\Domain\Inventory;
+namespace App\Tests\Unit\Domain\Transaction;
 
-use App\Domain\Inventory\CoinTransaction;
+use App\Domain\Transaction\CoinTransaction;
 use App\Domain\ValueObject\Coin;
 use App\Domain\ValueObject\Money;
 use PHPUnit\Framework\TestCase;

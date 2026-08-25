@@ -56,34 +56,6 @@ final class ProductInventoryTest extends TestCase
         new ProductInventory(self::KNOWN, ['water' => -1]);
     }
 
-    public function testAddUnitsAccumulatesPerProduct(): void
-    {
-        $inventory = new ProductInventory(self::KNOWN, ['water' => 2]);
-
-        $inventory->addUnits('water');
-        $inventory->addUnits('soda', 3);
-
-        self::assertSame(3, $inventory->quantityOf('water'));
-        self::assertSame(3, $inventory->quantityOf('soda'));
-    }
-
-    public function testAddUnitsRejectsUnknownProduct(): void
-    {
-        $inventory = new ProductInventory(self::KNOWN);
-
-        $this->expectException(ProductNotFoundException::class);
-
-        $inventory->addUnits('cola');
-    }
-
-    public function testAddUnitsDefaultsToASingleUnit(): void
-    {
-        $inventory = new ProductInventory(self::KNOWN);
-        $inventory->addUnits('juice');
-
-        self::assertSame(1, $inventory->quantityOf('juice'));
-    }
-
     public function testRemoveUnitsDecreasesTheQuantity(): void
     {
         $inventory = new ProductInventory(self::KNOWN, ['water' => 4]);
@@ -114,29 +86,6 @@ final class ProductInventoryTest extends TestCase
         }
 
         self::assertSame(2, $inventory->quantityOf('water'));
-    }
-
-    public function testConfigureReplacesTheWholeStock(): void
-    {
-        $inventory = new ProductInventory(self::KNOWN, ['water' => 10, 'soda' => 5]);
-
-        $inventory->configure(['juice' => 4]);
-
-        self::assertSame(['juice' => 4], $inventory->quantities());
-    }
-
-    public function testFailedConfigureLeavesTheStockUntouched(): void
-    {
-        $inventory = new ProductInventory(self::KNOWN, ['water' => 3]);
-
-        try {
-            $inventory->configure(['cola' => 1]);
-            self::fail('ProductNotFoundException was expected');
-        } catch (ProductNotFoundException) {
-            // expected
-        }
-
-        self::assertSame(['water' => 3], $inventory->quantities());
     }
 
     public function testQuantitiesSnapshotCannotMutateTheInventory(): void

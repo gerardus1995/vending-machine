@@ -14,9 +14,9 @@ use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
 use App\Domain\Inventory\CoinInventory;
-use App\Domain\Inventory\CoinTransaction;
 use App\Domain\Inventory\ProductInventory;
 use App\Domain\Result\PurchaseResult;
+use App\Domain\Transaction\CoinTransaction;
 use App\Domain\ValueObject\Coin;
 use App\Domain\ValueObject\Money;
 

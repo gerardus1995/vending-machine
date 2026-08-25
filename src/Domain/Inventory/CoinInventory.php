@@ -73,30 +73,6 @@ final class CoinInventory
     }
 
     /**
-     * Replaces the whole fund with a new configuration (SERVICE operation).
-     * Validates the complete configuration before applying it, so a failure
-     * leaves the current fund untouched.
-     *
-     * @param array<int, int> $quantities denomination (cents) => quantity
-     *
-     * @throws InvalidCoinException      when a denomination is not an accepted coin
-     * @throws \InvalidArgumentException when a quantity is negative
-     */
-    public function configure(array $quantities): void
-    {
-        $validatedQuantities = [];
-        foreach ($quantities as $denomination => $quantity) {
-            self::assertValidEntry($denomination, $quantity);
-
-            if ($quantity > 0) {
-                $validatedQuantities[$denomination] = $quantity;
-            }
-        }
-
-        $this->quantities = $validatedQuantities;
-    }
-
-    /**
      * Read-only snapshot of the fund: denomination (cents) => quantity.
      * Callers receive a copy and cannot mutate the inventory through it.
      *

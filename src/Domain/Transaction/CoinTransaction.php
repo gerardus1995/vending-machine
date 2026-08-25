@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Domain\Inventory;
+namespace App\Domain\Transaction;
 
 use App\Domain\ValueObject\Coin;
 use App\Domain\ValueObject\Money;

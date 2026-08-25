@@ -39,14 +39,6 @@ final class ProductInventory
         }
     }
 
-    public function addUnits(string $productId, int $count = 1): void
-    {
-        self::assertPositiveCount($count);
-        $this->assertKnownProduct($productId);
-
-        $this->quantities[$productId] = ($this->quantities[$productId] ?? 0) + $count;
-    }
-
     /**
      * @throws \DomainException when fewer than $count units are available
      */
@@ -67,27 +59,6 @@ final class ProductInventory
         }
 
         $this->quantities[$productId] = $available - $count;
-    }
-
-    /**
-     * Replaces the whole stock with a new configuration (SERVICE operation).
-     * Validates the complete configuration before applying it, so a failure
-     * leaves the current stock untouched.
-     *
-     * @param array<string, int> $quantities product id => quantity
-     *
-     * @throws ProductNotFoundException  when a product id is not part of the catalogue
-     * @throws \InvalidArgumentException when a quantity is negative
-     */
-    public function configure(array $quantities): void
-    {
-        $validatedQuantities = [];
-        foreach ($quantities as $productId => $quantity) {
-            $this->assertValidEntry($productId, $quantity);
-            $validatedQuantities[$productId] = $quantity;
-        }
-
-        $this->quantities = $validatedQuantities;
     }
 
     /**

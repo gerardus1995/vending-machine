@@ -42,14 +42,6 @@ final class ProductCatalogueTest extends TestCase
         $catalogue->get('tea');
     }
 
-    public function testHasKnowsWhichSelectorsExist(): void
-    {
-        $catalogue = $this->buildCatalogue();
-
-        self::assertTrue($catalogue->has('juice'));
-        self::assertFalse($catalogue->has('tea'));
-    }
-
     public function testKnownIdsListsEverySelector(): void
     {
         $catalogue = $this->buildCatalogue();
