@@ -85,6 +85,38 @@ composer cs-fix
 - `tests/Unit` - Unit tests, mirroring the structure of `src/`.
 - `tests/Integration` - End-to-end tests running the real CLI binary.
 
+## Architecture (Hexagonal & DDD)
+
+Dependencies point strictly inward (`Cli -> Application -> Domain`); nothing inside
+`Domain` knows about outer layers, so the domain is testable without Docker, CLI
+or any infrastructure.
+
+| Hexagonal concept | Where it lives here |
+|---|---|
+| Driving adapter | `Cli/VendingMachineCli` (plus the `bin/vending-machine` entry point) |
+| Application core (use cases) | `Application/*Action` |
+| Domain model (entity, value objects, inventories, domain service) | `Domain/*` |
+| Driven adapters / ports | none yet - no persistence or external services exist; the seams are ready |
+
+DDD tactical patterns in use:
+
+- **Aggregate root**: `VendingMachine` owns and mutates every piece of machine
+  state transactionally; nothing outside it touches inventories directly.
+- **Value objects**: `Money`, `Coin`.
+- **Entity**: `Product` (identity by id), held by an explicit `ProductCatalogue`.
+- **Inventories with invariants**: `CoinInventory`, `ProductInventory`, `CoinTransaction`.
+- **Domain service**: `GreedyChangeCalculator`.
+- **Ubiquitous language**: names mirror the challenge vocabulary verbatim.
+
+Two deliberate deviations from textbook hexagonal/DDD, accepted because a
+formalism with a single implementation and no second consumer would be
+speculative (see CLAUDE.md §3):
+
+1. Use-case actions are concrete classes instead of port interfaces - the seams
+   to extract interfaces already exist when a second adapter appears.
+2. No repositories or domain events - there is no persistence yet; both are the
+   natural next evolution once storage is introduced.
+
 ## Design Decisions
 
 ### Layering

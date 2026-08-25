@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain;
 
 use App\Domain\Calculator\GreedyChangeCalculator;
+use App\Domain\Catalogue\ProductCatalogue;
 use App\Domain\Entity\Product;
 use App\Domain\Exception\InsufficientChangeException;
 use App\Domain\Exception\InsufficientFundsException;
@@ -13,6 +14,7 @@ use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
 use App\Domain\Inventory\CoinInventory;
+use App\Domain\Inventory\CoinTransaction;
 use App\Domain\Inventory\ProductInventory;
 use App\Domain\Result\PurchaseResult;
 use App\Domain\ValueObject\Coin;
@@ -27,33 +29,32 @@ use App\Domain\ValueObject\Money;
  */
 final class VendingMachine
 {
-    /** @var array<string, Product> keyed by product id */
-    private array $products;
+    private ProductCatalogue $catalogue;
 
     private ProductInventory $productInventory;
 
     private CoinInventory $coinInventory;
 
-    /** @var list<Coin> coins inserted by the customer in the current transaction */
-    private array $insertedCoins = [];
+    private CoinTransaction $transaction;
 
     private readonly GreedyChangeCalculator $changeCalculator;
 
     public function __construct()
     {
-        $this->products = [
+        $this->catalogue = new ProductCatalogue([
             'water' => new Product('water', 'Water', Money::fromString('0.65')),
             'juice' => new Product('juice', 'Juice', Money::fromString('1.00')),
             'soda' => new Product('soda', 'Soda', Money::fromString('1.50')),
-        ];
-        $this->productInventory = new ProductInventory(array_keys($this->products));
+        ]);
+        $this->productInventory = new ProductInventory($this->catalogue->knownIds());
         $this->coinInventory = new CoinInventory();
+        $this->transaction = new CoinTransaction();
         $this->changeCalculator = new GreedyChangeCalculator();
     }
 
     public function insertCoin(Coin $coin): void
     {
-        $this->insertedCoins[] = $coin;
+        $this->transaction->insert($coin);
     }
 
     /**
@@ -64,10 +65,7 @@ final class VendingMachine
      */
     public function returnCoins(): array
     {
-        $returnedCoins = $this->insertedCoins;
-        $this->insertedCoins = [];
-
-        return $returnedCoins;
+        return $this->transaction->drain();
     }
 
     /**
@@ -85,8 +83,7 @@ final class VendingMachine
     public function selectProduct(string $productId): PurchaseResult
     {
         // 1. Validate the product exists.
-        $product = $this->products[$productId]
-            ?? throw new ProductNotFoundException(sprintf('Product "%s" does not exist', $productId));
+        $product = $this->catalogue->get($productId);
 
         // 2. Validate the product is in stock.
         if ($this->productInventory->quantityOf($productId) < 1) {
@@ -94,11 +91,11 @@ final class VendingMachine
         }
 
         // 3. Validate sufficient inserted money.
-        $insertedAmount = $this->insertedAmount();
-        if ($insertedAmount->isZero()) {
+        if ($this->transaction->isEmpty()) {
             throw new InsufficientFundsException('No coins inserted');
         }
 
+        $insertedAmount = $this->transaction->amount();
         $price = $product->price();
         if (!$insertedAmount->greaterThanOrEqual($price)) {
             throw new InsufficientFundsException(sprintf(
@@ -119,14 +116,12 @@ final class VendingMachine
         // 6. Every validation passed - commit the transaction atomically.
         $this->productInventory->removeUnits($productId);
 
-        foreach ($this->insertedCoins as $coin) {
+        foreach ($this->transaction->drain() as $coin) {
             $this->coinInventory->addCoins($coin);
         }
         foreach ($changeCoins as $coin) {
             $this->coinInventory->removeCoins($coin);
         }
-
-        $this->insertedCoins = [];
 
         return new PurchaseResult($product, $changeCoins);
     }
@@ -148,7 +143,7 @@ final class VendingMachine
      */
     public function service(array $productStock, array $coinQuantities): void
     {
-        if ([] !== $this->insertedCoins) {
+        if (!$this->transaction->isEmpty()) {
             throw new InvalidServiceOperationException(
                 'Cannot service the machine while customer coins are inserted'
             );
@@ -157,7 +152,7 @@ final class VendingMachine
         // Build and validate everything before touching current state.
         $newCoinInventory = new CoinInventory($coinQuantities);
         $newProductInventory = new ProductInventory(
-            array_keys($this->products),
+            $this->catalogue->knownIds(),
             $productStock
         );
 
@@ -192,16 +187,6 @@ final class VendingMachine
      */
     public function getInsertedTotal(): int
     {
-        return $this->insertedAmount()->cents();
-    }
-
-    private function insertedAmount(): Money
-    {
-        $totalCents = 0;
-        foreach ($this->insertedCoins as $coin) {
-            $totalCents += $coin->toCents();
-        }
-
-        return Money::fromCents($totalCents);
+        return $this->transaction->amount()->cents();
     }
 }
