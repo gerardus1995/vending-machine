@@ -7,14 +7,11 @@
 /phpunit.xml
 
 # PHPStan
-/phpstan.phonet.neon
 /phpstan.php
-/phpstan.neon
 
 # PHP-CS-Fixer
 /.php_cs.cache
 /.php-cs-fixer.php
-/.php-cs-fixer.dist.php
 /.php-cs-fixer.cache
 
 # IDE

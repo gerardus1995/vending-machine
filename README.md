@@ -45,22 +45,22 @@ with an `ERROR: ...` line or a USAGE hint; blank lines are ignored.
 
 ### Running Tests
 ```bash
-php vendor/bin/phpunit
+composer test
 ```
 
 ### Running PHPStan
 ```bash
-php vendor/bin/phpstan analyse
+composer stan
 ```
 
 ### Running PHP-CS-Fixer
 Check for fixes:
 ```bash
-php vendor/bin/php-cs-fixer fix --dry-run --diff
+composer cs-check
 ```
 Apply fixes:
 ```bash
-php vendor/bin/php-cs-fixer fix
+composer cs-fix
 ```
 
 ## Project Structure

@@ -1,6 +1,6 @@
 {
     "name": "gerard/vending-machine",
-    "description": "A PHP 8.3 vending machine kata",
+    "description": "A PHP 8.3 vending machine demo",
     "type": "project",
     "bin": ["bin/vending-machine"],
     "require": {
