@@ -13,6 +13,7 @@ use App\Domain\Exception\InvalidServiceOperationException;
 use App\Domain\Exception\OutOfStockException;
 use App\Domain\Exception\ProductNotFoundException;
 use App\Domain\Inventory\CoinInventory;
+use App\Domain\Inventory\ProductInventory;
 use App\Domain\Result\PurchaseResult;
 use App\Domain\ValueObject\Coin;
 use App\Domain\ValueObject\Money;
@@ -29,8 +30,7 @@ final class VendingMachine
     /** @var array<string, Product> keyed by product id */
     private array $products;
 
-    /** @var array<string, int> product id => units in stock */
-    private array $productStock;
+    private ProductInventory $productInventory;
 
     private CoinInventory $coinInventory;
 
@@ -46,7 +46,7 @@ final class VendingMachine
             'juice' => new Product('juice', 'Juice', Money::fromString('1.00')),
             'soda' => new Product('soda', 'Soda', Money::fromString('1.50')),
         ];
-        $this->productStock = [];
+        $this->productInventory = new ProductInventory(array_keys($this->products));
         $this->coinInventory = new CoinInventory();
         $this->changeCalculator = new GreedyChangeCalculator();
     }
@@ -89,7 +89,7 @@ final class VendingMachine
             ?? throw new ProductNotFoundException(sprintf('Product "%s" does not exist', $productId));
 
         // 2. Validate the product is in stock.
-        if (($this->productStock[$productId] ?? 0) < 1) {
+        if ($this->productInventory->quantityOf($productId) < 1) {
             throw new OutOfStockException(sprintf('Product "%s" is out of stock', $product->name()));
         }
 
@@ -117,7 +117,7 @@ final class VendingMachine
         );
 
         // 6. Every validation passed - commit the transaction atomically.
-        --$this->productStock[$productId];
+        $this->productInventory->removeUnits($productId);
 
         foreach ($this->insertedCoins as $coin) {
             $this->coinInventory->addCoins($coin);
@@ -156,25 +156,13 @@ final class VendingMachine
 
         // Build and validate everything before touching current state.
         $newCoinInventory = new CoinInventory($coinQuantities);
-
-        foreach ($productStock as $stockProductId => $quantity) {
-            if (!isset($this->products[$stockProductId])) {
-                throw new ProductNotFoundException(sprintf(
-                    'Unknown product "%s" in service configuration',
-                    $stockProductId
-                ));
-            }
-
-            if ($quantity < 0) {
-                throw new \InvalidArgumentException(sprintf(
-                    'Stock quantity for product "%s" cannot be negative',
-                    $stockProductId
-                ));
-            }
-        }
+        $newProductInventory = new ProductInventory(
+            array_keys($this->products),
+            $productStock
+        );
 
         // Commit.
-        $this->productStock = $productStock;
+        $this->productInventory = $newProductInventory;
         $this->coinInventory = $newCoinInventory;
     }
 
@@ -185,7 +173,7 @@ final class VendingMachine
      */
     public function getProductStock(): array
     {
-        return $this->productStock;
+        return $this->productInventory->quantities();
     }
 
     /**

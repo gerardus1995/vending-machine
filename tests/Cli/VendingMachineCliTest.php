@@ -153,7 +153,7 @@ final class VendingMachineCliTest extends TestCase
     public function testServiceWithUnknownProductIsRenderedAsError(): void
     {
         self::assertSame(
-            ['ERROR: Unknown product "cola" in service configuration'],
+            ['ERROR: Unknown product "cola"'],
             $this->respond(['SERVICE cola:1 5:1'])
         );
     }

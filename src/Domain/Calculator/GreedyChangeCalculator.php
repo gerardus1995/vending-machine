@@ -9,15 +9,11 @@ use App\Domain\ValueObject\Coin;
 use App\Domain\ValueObject\Money;
 
 /**
- * Calculates change with the classic greedy algorithm: repeatedly take as many
- * coins of the largest denomination as the remaining amount and availability allow.
+ * Calculates change using the greedy algorithm, taking the largest
+ * available denomination first.
  *
- * Trade-off note: greedy produces the fewest possible coins for canonical
- * denomination systems such as this challenge's {5, 10, 25, 100}. It does NOT
- * guarantee that a solution exists (nor optimality) for arbitrary coin systems -
- * e.g. with denominations {1, 3, 4} and amount 6 greedy gives 4+1+1 while 3+3 is
- * optimal. If the denomination set ever becomes non-canonical, only this class
- * needs to change; its contract stays the same.
+ * The challenge denominations {5, 10, 25, 100} form a canonical
+ * coin system, so greedy produces an optimal solution.
  */
 final class GreedyChangeCalculator
 {
