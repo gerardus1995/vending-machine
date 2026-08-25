@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain\Exception;
+namespace App\Tests\Unit\Domain\Exception;
 
 use App\Domain\Exception\InvalidServiceOperationException;
 use PHPUnit\Framework\TestCase;

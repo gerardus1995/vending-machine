@@ -82,9 +82,7 @@ composer cs-fix
 - `src/Domain` - Domain entities, value objects, inventories, and exceptions.
 - `src/Application` - Application actions (thin use cases around the domain).
 - `src/Cli` - Command-line interface parsing and output formatting.
-- `tests/Application` - Tests for the application actions.
-- `tests/Cli` - Tests for the CLI.
-- `tests/Domain` - Tests mirroring the structure of `src/Domain`.
+- `tests/Unit` - Unit tests, mirroring the structure of `src/`.
 - `tests/Integration` - End-to-end tests running the real CLI binary.
 
 ## Design Decisions

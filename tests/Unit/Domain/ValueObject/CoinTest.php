@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain\ValueObject;
+namespace App\Tests\Unit\Domain\ValueObject;
 
 use App\Domain\Exception\InvalidCoinException;
 use App\Domain\ValueObject\Coin;
